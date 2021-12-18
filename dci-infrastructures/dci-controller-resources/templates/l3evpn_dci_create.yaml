@@ -14,5 +14,7 @@ rest_calls:
     response_format: json
     response_translation:
       uuid: [L3EVPN_DCI_UUID]
+      east_site_vn_uuid: [EAST_VN_UUID]
+      west_site_vn_uuid: [WEST_VN_UUID]
     recoverable_codes: [400]
     retry_on_connection_error: true

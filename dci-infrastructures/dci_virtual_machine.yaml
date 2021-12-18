@@ -1,0 +1,195 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - https://cloudify.co/spec/cloudify/6.2.0/types.yaml
+  - plugin:cloudify-openstack-plugin?version= >=3.2.2
+  - dci-controller-resources/types.yaml
+
+inputs:
+
+  host:
+    type: string
+    description: >
+      IP/Hostname of dci-controller-api.
+    default: "localhost"
+
+  port:
+    type: integer
+    description: >
+      Port of dci-controller-api.
+    default: 6699
+
+  dci_name_suffix:
+    type: string
+    description: Name of DCI Resource.
+
+  east_site_uuid:
+    type: string
+    description: >
+      UUID of east site.
+
+  east_site_subnet_cidr:
+    type: string
+    description: >
+      Subnet CIDR of west site.
+
+  east_site_vm_name:
+    type: string
+    description: Name of VM.
+
+  east_site_image_uuid:
+    type: string
+    description: UUID of OpenStack vrtual machine mage.
+
+  east_site_flavor_uuid:
+    type: string
+    description: UUID of flavor.
+
+  west_site_uuid:
+    type: string
+    description: >
+      UUID of west site.
+
+  west_site_subnet_cidr:
+    type: string
+    description: >
+      Subnet CIDR of west site.
+
+  west_site_vm_name:
+    type: string
+    description: Name of VM.
+
+  west_site_image_uuid:
+    type: string
+    description: UUID of OpenStack vrtual machine mage.
+
+  west_site_flavor_uuid:
+    type: string
+    description: UUID of flavor.
+
+dsl_definitions:
+
+  - &endpoint_properties
+    host: { get_input: host }
+    port: { get_input: port }
+    ssl: false
+    verify: false
+
+  - &east_openstackclient_config
+    auth_url: { get_attribute: [east_site, result_properties, site, os_auth_url] }
+    region_name: { get_attribute: [east_site, result_properties, site, os_region] }
+    project_domain_name: { get_attribute: [east_site, result_properties, site, os_project_domain_name] }
+    user_domain_name: { get_attribute: [east_site, result_properties, site, os_user_domain_name] }
+    project_name: { get_attribute: [east_site, result_properties, site, os_project_name] }
+    username: { get_attribute: [east_site, result_properties, site, os_username] }
+    password: { get_attribute: [east_site, result_properties, site, os_password] }
+
+  - &west_openstackclient_config
+    auth_url: { get_attribute: [west_site, result_properties, site, os_auth_url] }
+    region_name: { get_attribute: [west_site, result_properties, site, os_region] }
+    project_domain_name: { get_attribute: [west_site, result_properties, site, os_project_domain_name] }
+    user_domain_name: { get_attribute: [west_site, result_properties, site, os_user_domain_name] }
+    project_name: { get_attribute: [west_site, result_properties, site, os_project_name] }
+    username: { get_attribute: [west_site, result_properties, site, os_username] }
+    password: { get_attribute: [west_site, result_properties, site, os_password] }
+
+  - &nova_config
+    kwargs:
+      compute_default_microversion: 2.42
+      compute_api_version: 2.42
+
+node_templates:
+
+  east_site:
+    type: cloudify.nodes.dci.Site
+    properties:
+      <<: *endpoint_properties
+      resource_config:
+        site_uuid: { get_input: east_site_uuid }
+
+  west_site:
+    type: cloudify.nodes.dci.Site
+    properties:
+      <<: *endpoint_properties
+      resource_config:
+        site_uuid: { get_input: west_site_uuid }
+
+  l3evpn_dci:
+    type: cloudify.nodes.dci.L3EVPNDCI
+    properties:
+      <<: *endpoint_properties
+      resource_config:
+        dci_name_suffix: { get_input: dci_name_suffix }
+        east_site_uuid: { get_input: east_site_uuid }
+        east_site_subnet_cidr: { get_input: east_site_subnet_cidr }
+        west_site_uuid: { get_input: west_site_uuid }
+        west_site_subnet_cidr: { get_input: west_site_subnet_cidr }
+    relationships:
+      - type: cloudify.relationships.depends_on
+        target: east_site
+      - type: cloudify.relationships.depends_on
+        target: west_site
+
+  east_virtual_machine:
+    type: cloudify.nodes.openstack.Server
+    properties:
+      client_config:
+        <<: *east_openstackclient_config
+        <<: *nova_config
+      resource_config:
+        name: { get_input: east_site_vm_name }
+        image_id: { get_input: east_site_image_uuid }
+        flavor_id: { get_input: east_site_flavor_uuid }
+      agent_config:
+        install_method: none
+    relationships:
+      - type: cloudify.relationships.contained_in
+        target: east_site
+      - type: cloudify.relationships.depends_on
+        target: l3evpn_dci
+      - type: cloudify.relationships.openstack.server_connected_to_port
+        target: east_port
+
+  east_port:
+    type: cloudify.nodes.openstack.Port
+    properties:
+      client_config: *east_openstackclient_config
+      resource_config:
+        network_id: { get_attribute: [l3evpn_dci, result_properties, EAST_VN_UUID] }
+    relationships:
+      - type: cloudify.relationships.contained_in
+        target: l3evpn_dci
+      - type: cloudify.relationships.depends_on
+        target: l3evpn_dci
+
+  west_virtual_machine:
+    type: cloudify.nodes.openstack.Server
+    properties:
+      client_config:
+        <<: *west_openstackclient_config
+        <<: *nova_config
+      resource_config:
+        name: { get_input: west_site_vm_name }
+        image_id: { get_input: west_site_image_uuid }
+        flavor_id: { get_input: west_site_flavor_uuid }
+      agent_config:
+        install_method: none
+    relationships:
+      - type: cloudify.relationships.contained_in
+        target: west_site
+      - type: cloudify.relationships.depends_on
+        target: l3evpn_dci
+      - type: cloudify.relationships.openstack.server_connected_to_port
+        target: west_port
+
+  west_port:
+    type: cloudify.nodes.openstack.Port
+    properties:
+      client_config: *west_openstackclient_config
+      resource_config:
+        network_id: { get_attribute: [l3evpn_dci, result_properties, WEST_VN_UUID] }
+    relationships:
+      - type: cloudify.relationships.contained_in
+        target: l3evpn_dci
+      - type: cloudify.relationships.depends_on
+        target: l3evpn_dci
