@@ -1,0 +1,83 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - https://cloudify.co/spec/cloudify/6.2.0/types.yaml
+  - dci-controller-resources/types.yaml
+
+inputs:
+
+  host:
+    description: >
+      IP/Hostname of dci-controller-api.
+    type: string
+    default: "localhost"
+
+  port:
+    description: >
+      Port of dci-controller-api.
+    type: integer
+    default: 6699
+
+  dci_name_suffix:
+    type: string
+    description: Name of DCI Resource.
+
+  east_site_uuid:
+    description: >
+      UUID of east site.
+    type: string
+
+  east_site_subnet_cidr:
+    description: >
+      Subnet CIDR of west site.
+    type: string
+
+  west_site_uuid:
+    description: >
+      UUID of west site.
+    type: string
+
+  west_site_subnet_cidr:
+    description: >
+      Subnet CIDR of west site.
+    type: string
+
+dsl_definitions:
+
+  endpoint_properties: &endpoint_properties
+    host: { get_input: host }
+    port: { get_input: port }
+    ssl: false
+    verify: false
+
+node_templates:
+
+  east_site:
+    type: cloudify.nodes.dci.Site
+    properties:
+      <<: *endpoint_properties
+      resource_config:
+        site_uuid: { get_input: east_site_uuid }
+
+  west_site:
+    type: cloudify.nodes.dci.Site
+    properties:
+      <<: *endpoint_properties
+      resource_config:
+        site_uuid: { get_input: west_site_uuid }
+
+  l3evpn_dci:
+    type: cloudify.nodes.dci.L3EVPNDCI
+    properties:
+      <<: *endpoint_properties
+      resource_config:
+        dci_name_suffix: { get_input: dci_name_suffix }
+        east_site_uuid: { get_input: east_site_uuid }
+        east_site_subnet_cidr: { get_input: east_site_subnet_cidr }
+        west_site_uuid: { get_input: west_site_uuid }
+        west_site_subnet_cidr: { get_input: west_site_subnet_cidr }
+    relationships:
+      - type: cloudify.relationships.depends_on
+        target: east_site
+      - type: cloudify.relationships.depends_on
+        target: west_site

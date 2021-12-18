@@ -1,0 +1,82 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - https://cloudify.co/spec/cloudify/6.2.0/types.yaml
+  - plugin:cloudify-utilities-plugin?version= >=1.25.3
+
+data_types:
+
+  cloudify.types.dci.Site:
+    properties:
+      site_uuid:
+        type: string
+        description: UUID of DCI Site.
+
+  cloudify.types.dci.L3EVPNDCI:
+    properties:
+      dci_name_suffix:
+        type: string
+      east_site_uuid:
+        type: string
+      east_site_subnet_cidr:
+        type: string
+      west_site_uuid:
+        type: string
+      west_site_subnet_cidr:
+        type: string
+
+node_types:
+
+  cloudify.nodes.dci.Site:
+    derived_from: cloudify.rest.Requests
+    properties:
+      resource_config:
+        type: cloudify.types.dci.Site
+        description: A dictionary that may contain UUID of DCI Site.
+        default: {}
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: rest.cloudify_rest.tasks.execute
+          inputs:
+            template_file:
+              default: dci-controller-resources/templates/sites-get-one.yaml
+            prerender:
+              default: true
+            params:
+              default:
+                SITE_UUID: { get_property: [ SELF, resource_config, site_uuid ] }
+
+  cloudify.nodes.dci.L3EVPNDCI:
+    derived_from: cloudify.rest.Requests
+    properties:
+      resource_config:
+        type: cloudify.types.dci.L3EVPNDCI
+        description: A dictionary that may contain these keys of /l3evpn_dcis API.
+        default: {}
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: rest.cloudify_rest.tasks.execute
+          inputs:
+            template_file:
+              default: dci-controller-resources/templates/l3evpn_dci_create.yaml
+            prerender:
+              default: true
+            params:
+              default:
+                NAME: { concat: [ cloudify-, { get_property: [ SELF, resource_config, dci_name_suffix ] } ] }
+                EAST_SITE_UUID: { get_property: [ SELF, resource_config, east_site_uuid ] }
+                EAST_SITE_SUBNET_CIDR: { get_property: [ SELF, resource_config, east_site_subnet_cidr ] }
+                WEST_SITE_UUID: { get_property: [ SELF, resource_config, west_site_uuid ] }
+                WEST_SITE_SUBNET_CIDR: { get_property: [ SELF, resource_config, west_site_subnet_cidr ] }
+        stop:
+          implementation: rest.cloudify_rest.tasks.execute
+          inputs:
+            template_file:
+              default: dci-controller-resources/templates/l3evpn_dci_delete.yaml
+            prerender:
+              default: true
+            params:
+              default:
+                L3EVPN_DCI_UUID: { get_attribute: [SELF, result_properties, L3EVPN_DCI_UUID] }
