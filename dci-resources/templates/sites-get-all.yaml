@@ -1,0 +1,12 @@
+rest_calls:
+
+  # Get all sites and store the response under "sites" runtime property.
+  - path: /v1/sites
+    method: GET
+    headers:
+      Content-type: application/json
+    response_format: json
+    response_translation:
+      sites: [sites]
+    recoverable_codes: [400]
+    retry_on_connection_error: true

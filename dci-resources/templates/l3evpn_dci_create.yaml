@@ -1,0 +1,18 @@
+rest_calls:
+
+  # Create a L3 EVPN DCI and store the response under "l3evpn_dci" runtime property.
+  - path: /v1/l3evpn_dcis
+    method: POST
+    headers:
+      Content-type: application/json
+    payload:
+      name: {{ NAME }}
+      east_site_uuid: {{ EAST_SITE_UUID }}
+      east_site_subnet_cidr: {{ EAST_SITE_SUBNET_CIDR }}
+      west_site_uuid: {{ WEST_SITE_UUID }}
+      west_site_subnet_cidr: {{ WEST_SITE_SUBNET_CIDR }}
+    response_format: json
+    response_translation:
+      uuid: [L3EVPN_DCI_UUID]
+    recoverable_codes: [400]
+    retry_on_connection_error: true

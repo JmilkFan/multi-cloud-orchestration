@@ -1,0 +1,10 @@
+rest_calls:
+
+  # Delete a L3 EVPN DCI.
+  - path: /v1/l3evpn_dcis/{{ L3EVPN_DCI_UUID }}
+    method: DELETE
+    headers:
+      Content-type: application/json
+    response_format: raw
+    recoverable_codes: [400]
+    retry_on_connection_error: true

@@ -1,0 +1,13 @@
+rest_calls:
+
+  # Get all sites and store the response under "sites" runtime property.
+  - path: /v1/sites/{{ SITE_UUID }}
+    method: GET
+    headers:
+      Content-type: application/json
+    response_format: json
+    response_translation: [site]
+    response_expectation:
+      - ['uuid', {{ SITE_UUID }}]
+    recoverable_codes: [400]
+    retry_on_connection_error: true
